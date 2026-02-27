@@ -368,19 +368,6 @@ export default function App() {
       installments: parseInt((document.getElementById('installments') as HTMLInputElement).value || '1')
     });
 
-    // Automatically create an income financial record
-    await fetch('/api/financials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'income',
-        description: `Serviço #${activeService.id} - ${activeService.client_name}`,
-        amount: activeService.value,
-        date: new Date().toISOString(),
-        category: 'serviço'
-      })
-    });
-
     setActiveService(null);
   };
 

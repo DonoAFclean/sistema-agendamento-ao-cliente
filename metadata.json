@@ -1,5 +1,5 @@
 {
-  "name": "Remix: Remix: AF CLEAN Manager",
+  "name": "AF CLEAN Manager",
   "description": "Sistema completo de gerenciamento para AF CLEAN: agendamentos, checklist com fotos, financeiro, assinatura digital e relatórios em PDF.",
   "requestFramePermissions": [
     "camera",

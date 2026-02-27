@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("afclean.db");
+const db = new Database(path.join(__dirname, "afclean.db"));
 
 // Initialize Database
 db.exec(`
@@ -72,8 +72,17 @@ async function startServer() {
   });
 
   app.post("/api/settings", (req, res) => {
-    const { key, value } = req.body;
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
+    const body = req.body;
+    if (body.key && body.value !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(body.key, body.value.toString());
+    } else {
+      const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+      for (const [key, value] of Object.entries(body)) {
+        if (value !== undefined && value !== null) {
+          stmt.run(key, value.toString());
+        }
+      }
+    }
     res.json({ success: true });
   });
 
