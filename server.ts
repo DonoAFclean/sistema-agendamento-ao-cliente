@@ -193,19 +193,29 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(path.join(__dirname, "dist"));
+  const isProd = process.env.NODE_ENV === "production";
 
   if (!isProd) {
+    console.log("Starting in DEVELOPMENT mode (Vite)");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+    console.log("Starting in PRODUCTION mode (Static)");
+    const distPath = path.join(__dirname, "dist");
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      console.error("Production mode enabled but dist folder not found!");
+      app.get("*", (req, res) => {
+        res.status(500).send("Production build missing. Please run 'npm run build'.");
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
@@ -213,4 +223,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});
