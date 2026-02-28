@@ -72,6 +72,41 @@
   border: 1px solid var(--primary);
 }
 
+.rdp-full-width {
+  width: 100%;
+}
+
+.rdp-full-width .rdp-month {
+  width: 100%;
+}
+
+.rdp-full-width .rdp-table {
+  width: 100%;
+  max-width: none;
+}
+
+.rdp-full-width .rdp-cell {
+  width: auto;
+  padding: 1px;
+}
+
+.rdp-full-width .rdp-day {
+  width: 100%;
+  min-width: 40px;
+  height: 50px;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border: 1px solid transparent;
+}
+
+.rdp-full-width .rdp-day_selected {
+  border-color: var(--primary);
+  background-color: hsl(var(--primary) / 0.1);
+  color: hsl(var(--foreground));
+}
+
 .rdp-cell .rdp-day_disabled {
   color: var(--muted-foreground);
   opacity: 0.5;

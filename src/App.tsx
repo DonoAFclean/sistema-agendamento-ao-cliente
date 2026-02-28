@@ -769,6 +769,35 @@ export default function App() {
                       onSelect={setSelectedDay}
                       locale={ptBR}
                       showOutsideDays
+                      className="rdp-full-width"
+                      components={{
+                        Day: (props) => {
+                          const { day, modifiers, ...divProps } = props;
+                          const date = day.date;
+                          const dayServices = services.filter(s => isSameDay(parseISO(s.date), date));
+                          return (
+                            <div 
+                              {...divProps}
+                              className={cn(
+                                divProps.className,
+                                "flex flex-col items-center justify-start h-full w-full pt-1 overflow-hidden"
+                              )}
+                            >
+                              <span className="text-xs font-bold">{date.getDate()}</span>
+                              <div className="flex flex-col w-full px-0.5 gap-0.5 mt-0.5">
+                                {dayServices.slice(0, 2).map(s => (
+                                  <span key={s.id} className="block truncate text-[7px] leading-[1.1] bg-primary/20 text-primary dark:text-primary-foreground rounded-sm px-0.5 text-center font-medium">
+                                    {s.client_name.split(' ')[0]}
+                                  </span>
+                                ))}
+                                {dayServices.length > 2 && (
+                                  <span className="text-[7px] text-center text-muted-foreground">+{dayServices.length - 2}</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                      }}
                       modifiersStyles={{
                         today: { borderColor: 'var(--primary)', borderWidth: '2px' },
                         selected: { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }
