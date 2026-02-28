@@ -1,6 +1,6 @@
 {
   "name": "AF CLEAN Manager",
-  "description": "Sistema completo de gerenciamento para AF CLEAN: agendamentos, checklist com fotos, financeiro, assinatura digital e relatórios em PDF.",
+  "description": "Sistema completo de gerenciamento para AF CLEAN: agendamentos, checklist com fotos, financeiro, assinatura digital e relatórios em PDF. Funciona 100% offline salvando dados localmente no navegador.",
   "requestFramePermissions": [
     "camera",
     "geolocation"

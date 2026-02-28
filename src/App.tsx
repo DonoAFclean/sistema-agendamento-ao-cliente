@@ -31,12 +31,13 @@ import { ptBR } from 'date-fns/locale';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import SignatureCanvas from 'react-signature-canvas';
-// @ts-ignore
-const SignaturePad = SignatureCanvas.default || SignatureCanvas;
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
+// Local Storage Import
+import { storage as localStore } from './lib/storage';
 
 import { Client, Service, FinancialRecord, AppSettings } from './types';
 
@@ -101,6 +102,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [companyInfo, setCompanyInfo] = useState({ name: '', whatsapp: '' });
 
+  // Remove the isWrongEnv check as we are now using Firebase
   useEffect(() => {
     if (settings.company_name) {
       setCompanyInfo({ name: settings.company_name, whatsapp: settings.whatsapp_contact || '' });
@@ -109,14 +111,8 @@ export default function App() {
 
   const handleSaveCompanyInfo = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company_name: companyInfo.name,
-        whatsapp_contact: companyInfo.whatsapp
-      })
-    });
+    await localStore.saveSetting('company_name', companyInfo.name);
+    await localStore.saveSetting('whatsapp_contact', companyInfo.whatsapp);
     fetchData();
   };
 
@@ -129,11 +125,7 @@ export default function App() {
       }
     }
     
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: 'push_notifications_enabled', value: enabled })
-    });
+    await localStore.saveSetting('push_notifications_enabled', enabled);
     fetchData();
   };
 
@@ -173,7 +165,7 @@ export default function App() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editingFinancial, setEditingFinancial] = useState<FinancialRecord | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | undefined>(new Date());
-  const [selectedClientId, setSelectedClientId] = useState<number | undefined>(undefined);
+  const [selectedClientId, setSelectedClientId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (isServiceModalOpen && editingService) {
@@ -199,21 +191,17 @@ export default function App() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [sRes, cRes, fRes, stRes] = await Promise.all([
-        fetch('/api/services'),
-        fetch('/api/clients'),
-        fetch('/api/financials'),
-        fetch('/api/settings')
+      const [s, c, f, st] = await Promise.all([
+        localStore.getServices(),
+        localStore.getClients(),
+        localStore.getFinancials(),
+        localStore.getSettings()
       ]);
-      const servicesData = await sRes.json();
-      setServices(servicesData.map((s: any) => ({
-        ...s,
-        photos_before: s.photos_before ? JSON.parse(s.photos_before) : [],
-        photos_after: s.photos_after ? JSON.parse(s.photos_after) : []
-      })));
-      setClients(await cRes.json());
-      setFinancials(await fRes.json());
-      setSettings(await stRes.json());
+      
+      setServices(s.sort((a, b) => b.date.localeCompare(a.date)));
+      setClients(c);
+      setFinancials(f.sort((a, b) => b.date.localeCompare(a.date)));
+      setSettings(st);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -241,27 +229,22 @@ export default function App() {
     const [hours, minutes] = time.split(':').map(Number);
     selectedDate.setHours(hours, minutes, 0, 0);
 
-    const data = {
-      client_id: selectedClientId as number,
+    const data: Service = {
+      id: editingService?.id || crypto.randomUUID(),
+      client_id: selectedClientId as string,
       date: selectedDate.toISOString(),
       value: parseFloat(formData.get('value') as string),
       payment_method: formData.get('payment_method') as string,
       installments: parseInt(formData.get('installments') as string || '1'),
+      status: editingService?.status || 'scheduled',
+      client_name: clients.find(c => c.id === selectedClientId)?.name || '',
+      client_address: clients.find(c => c.id === selectedClientId)?.address || '',
+      client_phone: clients.find(c => c.id === selectedClientId)?.phone || '',
+      photos_before: editingService?.photos_before || [],
+      photos_after: editingService?.photos_after || [],
     };
 
-    if (editingService) {
-      await fetch(`/api/services/${editingService.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } else {
-      await fetch('/api/services', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    }
+    await localStore.saveService(data);
     setIsServiceModalOpen(false);
     setEditingService(null);
     fetchData();
@@ -270,25 +253,16 @@ export default function App() {
   const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = {
+    const data: Client = {
+      id: editingClient?.id || crypto.randomUUID(),
       name: formData.get('name') as string,
       address: formData.get('address') as string,
       phone: formData.get('phone') as string,
+      last_service_date: editingClient?.last_service_date,
+      next_reminder_date: editingClient?.next_reminder_date,
     };
 
-    if (editingClient) {
-      await fetch(`/api/clients/${editingClient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } else {
-      await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    }
+    await localStore.saveClient(data);
     setIsClientModalOpen(false);
     setEditingClient(null);
     fetchData();
@@ -297,53 +271,42 @@ export default function App() {
   const handleSaveFinancial = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = {
-      type: formData.get('type') as string,
+    const data: FinancialRecord = {
+      id: editingFinancial?.id || crypto.randomUUID(),
+      type: formData.get('type') as 'income' | 'expense',
       description: formData.get('description') as string,
       amount: parseFloat(formData.get('amount') as string),
       date: formData.get('date') as string,
       category: formData.get('category') as string,
     };
 
-    if (editingFinancial) {
-      await fetch(`/api/financials/${editingFinancial.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } else {
-      await fetch('/api/financials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    }
+    await localStore.saveFinancial(data);
     setIsFinancialModalOpen(false);
     setEditingFinancial(null);
     fetchData();
   };
 
-  const handleUpdateServiceStatus = async (id: number, updates: Partial<Service>) => {
-    await fetch(`/api/services/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    fetchData();
-    if (activeService && activeService.id === id) {
-      setActiveService({ ...activeService, ...updates });
+  const handleUpdateServiceStatus = async (id: string, updates: Partial<Service>) => {
+    const service = services.find(s => s.id === id);
+    if (service) {
+      const updated = { ...service, ...updates };
+      await localStore.saveService(updated);
+      fetchData();
+      if (activeService && activeService.id === id) {
+        setActiveService(updated);
+      }
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
     const file = e.target.files?.[0];
     if (file && activeService) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64 = reader.result as string;
         const currentPhotos = type === 'before' ? (activeService.photos_before || []) : (activeService.photos_after || []);
         const newPhotos = [...currentPhotos, base64];
-        handleUpdateServiceStatus(activeService.id, { [type === 'before' ? 'photos_before' : 'photos_after']: newPhotos });
+        await handleUpdateServiceStatus(activeService.id, { [type === 'before' ? 'photos_before' : 'photos_after']: newPhotos });
       };
       reader.readAsDataURL(file);
     }
@@ -354,21 +317,45 @@ export default function App() {
     
     let signature = '';
     try {
-      // Try to get trimmed canvas, if it fails due to the trim-canvas bug, fallback to raw canvas
       signature = sigPad.current.getTrimmedCanvas().toDataURL('image/png');
     } catch (e) {
-      console.warn("getTrimmedCanvas failed, falling back to raw canvas", e);
       signature = sigPad.current.getCanvas().toDataURL('image/png');
     }
+
+    const payment_method = (document.getElementById('payment_method') as HTMLSelectElement).value;
+    const installments = parseInt((document.getElementById('installments') as HTMLInputElement).value || '1');
 
     await handleUpdateServiceStatus(activeService.id, { 
       status: 'completed', 
       signature,
-      payment_method: (document.getElementById('payment_method') as HTMLSelectElement).value,
-      installments: parseInt((document.getElementById('installments') as HTMLInputElement).value || '1')
+      payment_method,
+      installments
+    });
+
+    // Update client last service date
+    const client = clients.find(c => c.id === activeService.client_id);
+    if (client) {
+      const nextReminder = new Date();
+      nextReminder.setMonth(nextReminder.getMonth() + 6);
+      await localStore.saveClient({
+        ...client,
+        last_service_date: new Date().toISOString(),
+        next_reminder_date: nextReminder.toISOString()
+      });
+    }
+
+    // Automatically create an income financial record
+    await localStore.saveFinancial({
+      id: crypto.randomUUID(),
+      type: 'income',
+      description: `Serviço - ${activeService.client_name}`,
+      amount: activeService.value,
+      date: new Date().toISOString(),
+      category: 'serviço'
     });
 
     setActiveService(null);
+    fetchData();
   };
 
   const generateInvoice = (service: Service) => {
@@ -761,7 +748,7 @@ export default function App() {
                               </Button>
                               <Button variant="ghost" size="icon" onClick={async () => {
                                 if(confirm('Excluir agendamento?')) {
-                                  await fetch(`/api/services/${service.id}`, { method: 'DELETE' });
+                                  await localStore.deleteService(service.id);
                                   fetchData();
                                 }
                               }}>
@@ -847,7 +834,7 @@ export default function App() {
                         </Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={async () => {
                           if(confirm('Excluir este serviço?')) {
-                            await fetch(`/api/services/${service.id}`, { method: 'DELETE' });
+                            await localStore.deleteService(service.id);
                             fetchData();
                           }
                         }}>
@@ -1007,7 +994,7 @@ export default function App() {
                               </Button>
                               <Button variant="ghost" size="icon" onClick={async () => {
                                 if(confirm('Excluir registro?')) {
-                                  await fetch(`/api/financials/${record.id}`, { method: 'DELETE' });
+                                  await localStore.deleteFinancial(record.id);
                                   fetchData();
                                 }
                               }}>
@@ -1081,11 +1068,7 @@ export default function App() {
                                     ctx?.drawImage(img, 0, 0, width, height);
                                     const resizedBase64 = canvas.toDataURL('image/png');
 
-                                    await fetch('/api/settings', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ key: 'logo', value: resizedBase64 })
-                                    });
+                                    await localStore.saveSetting('logo', resizedBase64);
                                     fetchData();
                                   };
                                 };
@@ -1097,11 +1080,7 @@ export default function App() {
                             <Button onClick={() => document.getElementById('logo-upload')?.click()}>Trocar Logo</Button>
                             {settings.logo && (
                               <Button variant="outline" className="text-destructive" onClick={async () => {
-                                await fetch('/api/settings', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ key: 'logo', value: '' })
-                                });
+                                await localStore.saveSetting('logo', '');
                                 fetchData();
                               }}>Remover</Button>
                             )}
@@ -1322,7 +1301,7 @@ export default function App() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Assinatura do Cliente</label>
                       <div className="rounded-2xl border-2 border-dashed bg-white p-2">
-                        <SignaturePad 
+                        <SignatureCanvas 
                           ref={sigPad}
                           penColor='black'
                           canvasProps={{ className: 'w-full h-40 touch-none' }}
@@ -1373,7 +1352,7 @@ export default function App() {
                       name="client_id" 
                       required 
                       value={selectedClientId || ''}
-                      onChange={(e) => setSelectedClientId(parseInt(e.target.value))}
+                      onChange={(e) => setSelectedClientId(e.target.value)}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="">Selecione um cliente</option>

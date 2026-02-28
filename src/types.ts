@@ -1,5 +1,5 @@
 export interface Client {
-  id: number;
+  id: string;
   name: string;
   address: string;
   phone: string;
@@ -8,8 +8,8 @@ export interface Client {
 }
 
 export interface Service {
-  id: number;
-  client_id: number;
+  id: string;
+  client_id: string;
   client_name: string;
   client_phone: string;
   client_address: string;
@@ -25,7 +25,7 @@ export interface Service {
 }
 
 export interface FinancialRecord {
-  id: number;
+  id: string;
   type: 'income' | 'expense';
   description: string;
   amount: number;
